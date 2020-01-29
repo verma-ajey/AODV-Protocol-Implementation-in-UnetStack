@@ -1,0 +1,13 @@
+container.add 'arp', new org.arl.unet.addr.AddressResolution()
+container.add 'state', new org.arl.unet.state.StateManager()
+container.add 'ranging', new org.arl.unet.phy.Ranging()
+container.add 'mac', new org.arl.unet.mac.CSMA()
+//container.add 'mac',new org.arl.unet.mac.maca.Maca()
+container.add 'link', new org.arl.unet.link.ReliableLink()
+//container.add 'udplink', new org.arl.unet.link.UdpLink()
+container.add 'transport', new org.arl.unet.transport.SWTransport()
+container.add 'router', new org.arl.unet.net.Router()
+container.add 'rdp', new org.arl.unet.net.RouteDiscoveryProtocol()
+//container.add 'remote', new org.arl.unet.remote.RemoteControl(scripts:'scripts')
+container.shell.addInitrc "${script.parent}/closure_script.groovy"
+container.add 'rt', new MyAgent()
