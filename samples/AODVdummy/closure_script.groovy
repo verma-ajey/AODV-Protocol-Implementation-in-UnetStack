@@ -14,6 +14,6 @@ initiate = { addr, count = 1 ->
   println "FINDING ROUTE TO $addr"
   count.times
   {
-            intiate << new RouteDiscoveryReq(to:4)
+            //intiate << new RouteDiscoveryReq(to:4)
   }
 }
