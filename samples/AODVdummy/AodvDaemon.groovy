@@ -26,6 +26,13 @@ def pdu = PDU.withFormat{
     uint32('Dest_Seq_No')
   }
 
+def data_pdu = PDU.withFormat{
+    length(3)
+    uint8('Type')
+    uint8('Destination')
+    uint8('Data')
+  }
+
    int Update_Source_Seq_No(){
      return(++Source_Seq_No);
    }
@@ -35,7 +42,7 @@ def pdu = PDU.withFormat{
      return ++T_Hop_Count;
    }
 
-int Check_Routing_Table(int T_Dest_Id)   // Returns 1 if any entry found, else 0, if no route entry exist
+int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry found, else 0, if no route entry exist
   {
       for(int[] row : RoutingTable)
       {
@@ -199,20 +206,27 @@ void processMessage(Message msg) {
     if(msg instanceof RxFrameNtf && msg.protocol == Protocol.DATA)  // If recieved message is a RREP with DATA protocol
     {
         def r_bytes =  pdu.decode(msg.data)                //decode PDU here
-                                                          //check if current node is the source node of rreq or not
-        if(r_bytes.Dest_Id == myAddr)
-        {
+                                                      //check if current node is the source node of rreq or not
+          if(r_bytes.Dest_Id == myAddr)
+          {
             Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
             System.out.println("Route Found to Destination");
-            System.out.println("-------Routing Table at Node" + myAddr+" ---------")
-                                            for(int []chk: RoutingTable)
-                                            {
-                                              System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
-                                            }
-        }
 
-        else                                                   //since rrep are unicast messages just update routing table, no need to update cache table as reforwarding of rreps won't be there
-        {
+            def dst = Check_Routing_Table(r_bytes.Source_Id)
+            def phantom = data_pdu.encode([ Type:0,
+                                          Destination: r_bytes.Source_Id,
+                                          Data:10
+                                       ])
+            phy << new DatagramReq(to:dst, protocol:Protocol.MAX, data:phantom)
+            // System.out.println("-------Routing Table at Node" + myAddr+" ---------")
+            //                                 for(int []chk: RoutingTable)
+            //                                 {
+            //                                   System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
+            //                                 }
+          }
+
+          else                                                   //since rrep are unicast messages just update routing table, no need to update cache table as reforwarding of rreps won't be there
+          {
                                                                   //Create forward route entry
             Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
                                                                    // create a intermediate RREP with updated hop count  and sequence no
@@ -221,7 +235,7 @@ void processMessage(Message msg) {
                                           Dest_Id :r_bytes.Dest_Id,
                                           Source_Seq_No : Update_Source_Seq_No(),
                                           Dest_Seq_No : 0])
-        
+
                                           if(myAddr ==2)
                                           {
                                             System.out.println("-------Routing Table at Node" + myAddr+" ---------")
@@ -232,8 +246,24 @@ void processMessage(Message msg) {
                                           }
             def prev = Check_Routing_Table(r_bytes.Dest_Id)
             phy << new DatagramReq(to:prev, protocol:Protocol.DATA,data:I_rrep_pdu)
-        
+
            }
-        }
     }
+    if(msg instanceof RxFrameNtf && msg.protocol == Protocol.MAX)
+    {
+      def d_bytes = data_pdu.decode(msg.data)
+      System.out.println("Node " + myAddr +"here" );
+      if(myAddr != d_bytes.Destination){
+      def dst = Check_Routing_Table(d_bytes.Destination)
+      def I_data_pdu = data_pdu([Type:0,
+                                Destination: d_bytes.Destination,
+                                Data:d_bytes.Data
+        ])
+      phy << new DatagramReq(to:dst, protocol:msg.protocol,data:I_data_pdu)
+      }
+      else if (myAddr == d_bytes.Destination){
+        System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +msg.data)
+      }
     }
+  }
+}
