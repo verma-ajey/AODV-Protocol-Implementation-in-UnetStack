@@ -173,7 +173,7 @@ void processMessage(Message msg) {
                    // Check for routing table , if route to dest is available, send  datagram using phy agent otherwise broadcast again and update backward route
                 def next = Check_Routing_Table(bytes.Dest_Id)
                 // Since RREQ must be forwarded, Construct a Intermediate RREQ with updated Seq no and Hop Count
-                def I_rreq_pdu = pdu.encode([Type:1,
+                def I_rreq_pdu = pdu.encode([ Type:1,
                                               Hop_Count: Update_Hop_Count(bytes.Hop_Count),
                                               Source_Id : bytes.Source_Id,
                                               Dest_Id: bytes.Dest_Id,
@@ -214,9 +214,8 @@ void processMessage(Message msg) {
 
             def dst = Check_Routing_Table(r_bytes.Source_Id)
             def phantom = data_pdu.encode([ Type:0,
-                                          Destination: r_bytes.Source_Id,
-                                          Data:10
-                                       ])
+                                            Destination: r_bytes.Source_Id,
+                                            Data:10])
             phy << new DatagramReq(to:dst, protocol:Protocol.MAX, data:phantom)
             // System.out.println("-------Routing Table at Node" + myAddr+" ---------")
             //                                 for(int []chk: RoutingTable)
@@ -255,14 +254,13 @@ void processMessage(Message msg) {
       System.out.println("Node " + myAddr +"here" );
       if(myAddr != d_bytes.Destination){
       def dst = Check_Routing_Table(d_bytes.Destination)
-      def I_data_pdu = data_pdu([Type:0,
+      def I_data_pdu = data_pdu.encode([Type:0,
                                 Destination: d_bytes.Destination,
-                                Data:d_bytes.Data
-        ])
+                                Data:d_bytes.Data ])
       phy << new DatagramReq(to:dst, protocol:msg.protocol,data:I_data_pdu)
       }
       else if (myAddr == d_bytes.Destination){
-        System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +msg.data)
+        System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +d_bytes.Data)
       }
     }
   }
