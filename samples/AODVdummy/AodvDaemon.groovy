@@ -26,12 +26,12 @@ def pdu = PDU.withFormat{
     uint32('Dest_Seq_No')
   }
 
-def data_pdu = PDU.withFormat{
-    length(3)
-    uint8('Type')
-    uint8('Destination')
-    uint8('Data')
-  }
+// def data_pdu = PDU.withFormat{
+//     length(3)
+//     uint8('Type')
+//     uint8('Destination')
+//     uint8('Data')
+//   }
 
    int Update_Source_Seq_No(){
      return(++Source_Seq_No);
@@ -137,14 +137,15 @@ void processMessage(Message msg) {
 
                         System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
                     }
+                def dst_seq = Math.max(bytes.Dest_Seq_No,Update_Source_Seq_No())
 
 
             def rrep_pdu = pdu.encode([ Type:2,
                                         Hop_Count:0,
                                         Source_Id:Source_id,
                                         Dest_Id:bytes.Source_Id,
-                                        Source_Seq_No: Update_Source_Seq_No(),
-                                        Dest_Seq_No:bytes.Source_Seq_No ])                         // RREP will contain destination seq. no.
+                                        Source_Seq_No: dst_seq,
+                                        Dest_Seq_No:bytes.Source_Seq_No])                         // RREP will contain destination seq. no.
 
              def prev = Check_Routing_Table(bytes.Source_Id)
              phy << new DatagramReq(to:prev, protocol:Protocol.DATA,data:rrep_pdu)
@@ -177,8 +178,8 @@ void processMessage(Message msg) {
                                               Hop_Count: Update_Hop_Count(bytes.Hop_Count),
                                               Source_Id : bytes.Source_Id,
                                               Dest_Id: bytes.Dest_Id,
-                                              Source_Seq_No : Update_Source_Seq_No(),
-                                              Dest_Seq_No : 0])
+                                              Source_Seq_No : bytes.Source_Seq_No,
+                                              Dest_Seq_No : bytes.Dest_Seq_No])
                 if(next)
                 {
                      // Route entry already exist,  forward Intermediate RREQ to Next hop address
@@ -213,10 +214,10 @@ void processMessage(Message msg) {
             System.out.println("Route Found to Destination");
 
             def dst = Check_Routing_Table(r_bytes.Source_Id)
-            def phantom = data_pdu.encode([ Type:0,
-                                            Destination: r_bytes.Source_Id,
-                                            Data:10])
-            phy << new DatagramReq(to:dst, protocol:Protocol.MAX, data:phantom)
+            // def phantom = data_pdu.encode([ Type:0,
+            //                                 Destination: r_bytes.Source_Id,
+            //                                 Data:10])
+            //  phy << new DatagramReq(to:dst, protocol:Protocol.MAX, data:phantom)
             // System.out.println("-------Routing Table at Node" + myAddr+" ---------")
             //                                 for(int []chk: RoutingTable)
             //                                 {
@@ -232,8 +233,8 @@ void processMessage(Message msg) {
             def I_rrep_pdu = pdu.encode([ Type:2, Hop_Count: Update_Hop_Count(r_bytes.Hop_Count),
                                           Source_Id : r_bytes.Source_Id,
                                           Dest_Id :r_bytes.Dest_Id,
-                                          Source_Seq_No : Update_Source_Seq_No(),
-                                          Dest_Seq_No : 0])
+                                          Source_Seq_No : r_bytes.Source_Seq_No,
+                                          Dest_Seq_No : r_bytes.Dest_Seq_No])
 
                                           if(myAddr ==2)
                                           {
@@ -250,18 +251,31 @@ void processMessage(Message msg) {
     }
     if(msg instanceof RxFrameNtf && msg.protocol == Protocol.MAX)
     {
-      def d_bytes = data_pdu.decode(msg.data)
-      System.out.println("Node " + myAddr +"here" );
-      if(myAddr != d_bytes.Destination){
-      def dst = Check_Routing_Table(d_bytes.Destination)
-      def I_data_pdu = data_pdu.encode([Type:0,
-                                Destination: d_bytes.Destination,
-                                Data:d_bytes.Data ])
-      phy << new DatagramReq(to:dst, protocol:msg.protocol,data:I_data_pdu)
-      }
-      else if (myAddr == d_bytes.Destination){
-        System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +d_bytes.Data)
-      }
+      if(myAddr != msg.data[0])
+      {
+        System.out.println("Node " + myAddr +"here" );
+         def dst = Check_Routing_Table(msg.data[0])
+         phy<< new DatagramReq(to:dst,protocol:msg.protocol,data:msg.data)
+       }
+       else if (myAddr == msg.data[0])
+       {
+         System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +msg.data[2])
+       }
+
+      // def d_bytes = data_pdu.decode(msg.data)
+      // System.out.println("Node " + myAddr +"here" );
+      // if(myAddr != d_bytes.Destination)
+      // {
+      //   def dst = Check_Routing_Table(d_bytes.Destination)
+      //   def I_data_pdu = data_pdu.encode([Type:0,
+      //                           Destination: d_bytes.Destination,
+      //                           Data:d_bytes.Data ])
+      //   phy << new DatagramReq(to:dst, protocol:msg.protocol,data:I_data_pdu)
+      // }
+      // else if (myAddr == d_bytes.Destination)
+      // {
+      //   System.out.println("DAta Reached Succesfully to node " +myAddr + ": " +d_bytes.Data)
+      // }
     }
   }
 }
