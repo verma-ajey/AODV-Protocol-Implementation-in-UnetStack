@@ -1,5 +1,4 @@
 import java.util.*
-import java.text.SimpleDateFormat
 import org.arl.fjage.*
 import org.arl.unet.*
 import org.arl.unet.phy.*
@@ -22,19 +21,7 @@ def Source_id
 def Source_Seq_No =0
 
 List<int[]> Cache = new ArrayList<int[]>();      // Holds source_seq_no,dst_id,src_id,Hop_Count,dest_seq_no to avoid forwarding loops
-                                                    // ---------------------------------------------------------------------------------
-                                                    // |   source_Seq_No    dst_Id     src_id   Hop_Count     dst_seq_no      Timestamp |
-                                                    // |                                                                                |
-                                                    // |                                                                                |
-                                                    // |                                                                                |
-                                                    // ----------------------------------------------------------------------------------
 List<int[]> RoutingTable = new ArrayList<int[]>();   // Holds actual routing information   source_Seq_No, Dst_id, nextHop, Hop_Count,dest_seq_no
-                                                    // ---------------------------------------------------------------------------------
-                                                    // |   source_Seq_No    dst_Id     nextHop   Hop_Count     dst_seq_no     Timestamp |
-                                                    // |                                                                                |
-                                                    // |                                                                                |
-                                                    // |                                                                                |
-                                                    // ----------------------------------------------------------------------------------
 
 def pdu = PDU.withFormat{
 
@@ -53,10 +40,11 @@ def pdu = PDU.withFormat{
 //     uint8('Data')
 //   }
 
-int Update_Source_Seq_No(){
+   int Update_Source_Seq_No(){
      return(++Source_Seq_No);
    }
 
+<<<<<<< HEAD
 int Get_Current_Time()
 {
   def timeStart = new Date()
@@ -65,6 +53,10 @@ int Get_Current_Time()
 }
 int Update_Hop_Count(int T_Hop_Count)
 {
+=======
+   int Update_Hop_Count(int T_Hop_Count)
+   {
+>>>>>>> parent of 79d45dc... Time functionality
      return ++T_Hop_Count;
 }
  
@@ -100,7 +92,11 @@ void Create_Backward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int
     RoutingTable.add([T_Source_Seq_No, T_Source_Id, T_Next, Updated_T_Hop_Count] as int[]);
   }
 
+<<<<<<< HEAD
 void Create_Forward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
+=======
+void Create_Forward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry for data to be sent after Route finding phase.
+>>>>>>> parent of 79d45dc... Time functionality
   {
     if(T_Source_Id != T_Next)
         RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[])
@@ -119,7 +115,7 @@ void startup(){
   Source_id = nodeinf.address
   if(myAddr == 1)
   {
-    add new WakerBehavior(5000, {
+    add new WakerBehavior(20000, {
       def rreq_pdu = pdu.encode([Type : 1,
                                  Hop_Count :0,
                                  Source_Id : Source_id,
@@ -148,14 +144,14 @@ void processMessage(Message msg) {
    //          //First update cache table and routing table with backward route, after that
 
                  Create_Backward_Route(bytes.Source_Seq_No, bytes.Source_Id, msg.from, bytes.Hop_Count, Update_Hop_Count(bytes.Hop_Count))
-                 Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count),bytes.Dest_Seq_No, Get_Current_Time()] as int[])
+                 Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count)] as int[])
    //          // [Construct RREP PDU and Unicast it back to source using a different protocol to differentiate between RREQ and RREP]
 
                 System.out.println("-------Cache Table at Node"+myAddr + "---------")
                 for(int []chk: Cache)
                 {
 
-                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4]+" "+ chk[5])
+                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
                 }
                 System.out.println("-------Routing Table at Node" + myAddr+" ---------")
                      for(int []chk: RoutingTable)
