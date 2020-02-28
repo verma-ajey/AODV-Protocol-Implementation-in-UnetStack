@@ -52,12 +52,17 @@ int Get_Current_Time()
   return seconds;
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 int Update_Hop_Count(int T_Hop_Count)
 {
 =======
    int Update_Hop_Count(int T_Hop_Count)
    {
 >>>>>>> parent of 79d45dc... Time functionality
+=======
+   int Update_Hop_Count(int T_Hop_Count)
+   {
+>>>>>>> parent of 09f5378... Time Functionality -2
 =======
    int Update_Hop_Count(int T_Hop_Count)
    {
@@ -99,10 +104,14 @@ void Create_Backward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, in
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 void Create_Forward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
 =======
 void Create_Forward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry for data to be sent after Route finding phase.
 >>>>>>> parent of 79d45dc... Time functionality
+=======
+void Create_Forward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
+>>>>>>> parent of 09f5378... Time Functionality -2
 =======
 void Create_Forward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
 >>>>>>> parent of 09f5378... Time Functionality -2
