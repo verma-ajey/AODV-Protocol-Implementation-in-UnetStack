@@ -42,8 +42,8 @@ def pdu = PDU.withFormat{
     uint8('Hop_Count')
     uint8('Source_Id')
     uint8('Dest_Id')
-    uint32('Source_Seq_No')
-    uint32('Dest_Seq_No')
+    uint16('Source_Seq_No')
+    uint16('Dest_Seq_No')
   }
 
 // def data_pdu = PDU.withFormat{
@@ -63,23 +63,23 @@ int Get_Current_Time()
   int seconds = timeStart.getTime()
   return seconds;
 }
-   int Update_Hop_Count(int T_Hop_Count)
-   {
+int Update_Hop_Count(int T_Hop_Count)
+{
      return ++T_Hop_Count;
-   }
-
+}
+ 
 int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry found, else 0, if no route entry exist
-  {
-      for(int[] row : RoutingTable)
-      {
-        if(row[1] == T_Dest_Id)
-          return row[2]
-      }
-      return 0;
+{
+    for(int[] row : RoutingTable)
+    {
+      if(row[1] == T_Dest_Id)
+        return row[2]
+    }
+    return 0;
   }
 
-int Check_Cache_Table(long T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
-  {
+int Check_Cache_Table(int T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
+{
     for(int[] row : Cache)
     {
       if(row[0] == T_Seq_No)
@@ -89,9 +89,9 @@ int Check_Cache_Table(long T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Return
       }
     }
     return 1;
-  }
+}
 
-void Create_Backward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)
+void Create_Backward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)
   {
       //2 entries will be added here, one for immediate neighbor which sent RREQ and one for Source of RREQ with updated hop count
     if(T_Source_Id != T_Next)
@@ -100,7 +100,7 @@ void Create_Backward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, in
     RoutingTable.add([T_Source_Seq_No, T_Source_Id, T_Next, Updated_T_Hop_Count] as int[]);
   }
 
-void Create_Forward_Route(long T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
+void Create_Forward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
   {
     if(T_Source_Id != T_Next)
         RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[])
@@ -188,7 +188,7 @@ void processMessage(Message msg) {
               {
    //              // Update cache table here for individual Nodes
 
-                Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count)] as int[])
+                Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count),bytes.Dest_Seq_No, Get_Current_Time()] as int[])
                 // if(myAddr ==3){
                 // System.out.println("-------Cache Table at Node"+myAddr + "---------")
                 // for(int []chk: Cache)
