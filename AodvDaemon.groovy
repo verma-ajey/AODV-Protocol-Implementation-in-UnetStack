@@ -20,6 +20,7 @@ def phy
 def myAddr
 def Source_id
 def Source_Seq_No =0
+def Rreq_Id =0
 
 List<int[]> Cache = new ArrayList<int[]>();      // Holds source_seq_no,dst_id,src_id,Hop_Count,dest_seq_no to avoid forwarding loops
                                                     // ---------------------------------------------------------------------------------
@@ -44,7 +45,9 @@ def pdu = PDU.withFormat{
     uint8('Dest_Id')
     uint16('Source_Seq_No')
     uint16('Dest_Seq_No')
+    uint16('Rreq_Id')
   }
+
 
 // def data_pdu = PDU.withFormat{
 //     length(3)
@@ -57,6 +60,10 @@ int Update_Source_Seq_No(){
      return(++Source_Seq_No);
    }
 
+int Update_Rreq_Id()
+{
+  return (++Rreq_Id)
+}
 int Get_Current_Time()
 {
   def timeStart = new Date()
@@ -67,7 +74,7 @@ int Update_Hop_Count(int T_Hop_Count)
 {
      return ++T_Hop_Count;
 }
- 
+
 int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry found, else 0, if no route entry exist
 {
     for(int[] row : RoutingTable)
@@ -75,11 +82,11 @@ int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry fo
       if(row[1] == T_Dest_Id)
         return row[2]
     }
-    return 0;
+      return 0;
   }
 
 int Check_Cache_Table(int T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
-{
+  {
     for(int[] row : Cache)
     {
       if(row[0] == T_Seq_No)
@@ -89,21 +96,21 @@ int Check_Cache_Table(int T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Returns
       }
     }
     return 1;
-}
+  }
 
 void Create_Backward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)
   {
       //2 entries will be added here, one for immediate neighbor which sent RREQ and one for Source of RREQ with updated hop count
-    if(T_Source_Id != T_Next)
-        RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[]);
+    // if(T_Source_Id != T_Next)
+    //     RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[]);
 
     RoutingTable.add([T_Source_Seq_No, T_Source_Id, T_Next, Updated_T_Hop_Count] as int[]);
   }
 
 void Create_Forward_Route(int T_Source_Seq_No, int T_Source_Id, int T_Next, int T_Hop_Count, int Updated_T_Hop_Count)    // while forwarding RREP, 1 row entry added for data to be sent after Route finding phase.
   {
-    if(T_Source_Id != T_Next)
-        RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[])
+    // if(T_Source_Id != T_Next)
+    //     RoutingTable.add([T_Source_Seq_No, T_Next, T_Next, 1] as int[])
     RoutingTable.add([T_Source_Seq_No, T_Source_Id, T_Next, Updated_T_Hop_Count] as int[])
   }
 
@@ -125,7 +132,8 @@ void startup(){
                                  Source_Id : Source_id,
                                  Dest_Id:4,
                                  Source_Seq_No : Update_Source_Seq_No(),
-                                 Dest_Seq_No : 0 ])   //Dynamic Source and Destination to be added
+                                 Dest_Seq_No : 0 ,
+                                 Rreq_Id : Update_Rreq_Id() ])   //Dynamic Source and Destination to be added
 
       phy << new DatagramReq(to: Address.BROADCAST, protocol: Protocol.USER, data:rreq_pdu)
     })
@@ -171,7 +179,8 @@ void processMessage(Message msg) {
                                         Source_Id:Source_id,
                                         Dest_Id:bytes.Source_Id,
                                         Source_Seq_No: dst_seq,
-                                        Dest_Seq_No:bytes.Source_Seq_No])                         // RREP will contain destination seq. no.
+                                        Dest_Seq_No:bytes.Source_Seq_No,
+                                        Rreq_Id : 0])                         // RREP will contain destination seq. no.
 
              def prev = Check_Routing_Table(bytes.Source_Id)
              phy << new DatagramReq(to:prev, protocol:Protocol.DATA,data:rrep_pdu)
@@ -205,7 +214,8 @@ void processMessage(Message msg) {
                                               Source_Id : bytes.Source_Id,
                                               Dest_Id: bytes.Dest_Id,
                                               Source_Seq_No : bytes.Source_Seq_No,
-                                              Dest_Seq_No : bytes.Dest_Seq_No])
+                                              Dest_Seq_No : bytes.Dest_Seq_No,
+                                              Rreq_Id : bytes.Rreq_Id])
                 if(next)
                 {
                      // Route entry already exist,  forward Intermediate RREQ to Next hop address
@@ -239,6 +249,13 @@ void processMessage(Message msg) {
             Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
             System.out.println("Route Found to Destination");
 
+            System.out.println("-------Routing Table at Node" + myAddr+" ---------")
+                 for(int []chk: RoutingTable)
+                {
+
+                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
+                }
+
             def dst = Check_Routing_Table(r_bytes.Source_Id)
             // def phantom = data_pdu.encode([ Type:0,
             //                                 Destination: r_bytes.Source_Id,
@@ -256,11 +273,13 @@ void processMessage(Message msg) {
                                                                   //Create forward route entry
             Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
                                                                    // create a intermediate RREP with updated hop count  and sequence no
-            def I_rrep_pdu = pdu.encode([ Type:2, Hop_Count: Update_Hop_Count(r_bytes.Hop_Count),
+            def I_rrep_pdu = pdu.encode([ Type:2,
+                                          Hop_Count: Update_Hop_Count(r_bytes.Hop_Count),
                                           Source_Id : r_bytes.Source_Id,
                                           Dest_Id :r_bytes.Dest_Id,
                                           Source_Seq_No : r_bytes.Source_Seq_No,
-                                          Dest_Seq_No : r_bytes.Dest_Seq_No])
+                                          Dest_Seq_No : r_bytes.Dest_Seq_No,
+                                          Rreq_Id : 0])
 
                                           if(myAddr ==2)
                                           {
