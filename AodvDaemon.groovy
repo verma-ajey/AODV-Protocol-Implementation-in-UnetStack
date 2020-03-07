@@ -11,11 +11,35 @@ import org.arl.unet.PDU
 class AodvDaemon extends UnetAgent {
 
 def ACTIVE_ROUTE_TIMEOUT = 3000 //ms
+def MY_ROUTE_TIMEOUT = 2*ACTIVE_ROUTE_TIMEOUT
+def ALLOWED_HELLO_LOSS = 2
+def HELLO_INTERVAL = 1000  //ms
+def RREQ_RETRIES = 2
+def RREQ_RATELIMIT = 10
+def RERR_RATELIMIT = 10
 
 def NET_DIAMETER = 35
 def NODE_TRAVERSAL_TIME = 40  //ms
 
+def TIMEOUT_BUFFER = 2
+
+def TTL_START = 1
+def TTL_INCREMENT = 2
+def TTL_THRESHOLD = 7
+def LOCAL_ADD_TTL = 2
+def MAX_REPAIR_TTL = 0.3*NET_DIAMETER
+
+def NEXT_HOP_WAIT = NODE_TRAVERSAL_TIME + 10
 def NET_TRAVERSAL_TIME = 2*NODE_TRAVERSAL_TIME*NET_DIAMETER
+
+def PATH_DISCOVERY_TIME = 2*NET_TRAVERSAL_TIME
+
+def BLACKLIST_TIMEOUT = RREQ_RETRIES*NET_TRAVERSAL_TIME
+
+def K = 5  //Knob
+def DELETE_PERIOD =  K* Math.max(ACTIVE_ROUTE_TIMEOUT,HELLO_INTERVAL)
+
+
 def phy
 def myAddr
 def Source_id
@@ -46,7 +70,19 @@ def pdu = PDU.withFormat{
     uint16('Source_Seq_No')
     uint16('Dest_Seq_No')
     uint16('Rreq_Id')
+    int8('D')
+    int8('G')
+    int8('U')
   }
+
+  def rp_pdu = PDU.withFormat{
+
+      uint8('Type')
+      uint8('Hop_Count')
+      uint8('Source_Id')
+      uint8('Dest_Id')
+      uint16('Dest_Seq_No')
+    }
 
 
 // def data_pdu = PDU.withFormat{
@@ -133,8 +169,12 @@ void startup(){
                                  Dest_Id:4,
                                  Source_Seq_No : Update_Source_Seq_No(),
                                  Dest_Seq_No : 0 ,
-                                 Rreq_Id : Update_Rreq_Id() ])   //Dynamic Source and Destination to be added
-
+                                 Rreq_Id : Update_Rreq_Id(),
+                                 G : 0,
+                                 D : 1,
+                                 U : 1])   //Dynamic Source and Destination to be added
+      def temp = pdu.decode(rreq_pdu)
+      Cache.add([temp.Source_Seq_No,temp.Dest_Id,temp.Source_Id,temp.Hop_Count,temp.Dest_Seq_No, Get_Current_Time()] as int[])
       phy << new DatagramReq(to: Address.BROADCAST, protocol: Protocol.USER, data:rreq_pdu)
     })
   }
@@ -174,13 +214,11 @@ void processMessage(Message msg) {
                 def dst_seq = Math.max(bytes.Dest_Seq_No,Update_Source_Seq_No())
 
 
-            def rrep_pdu = pdu.encode([ Type:2,
+            def rrep_pdu = rp_pdu.encode([ Type:2,
                                         Hop_Count:0,
                                         Source_Id:Source_id,
                                         Dest_Id:bytes.Source_Id,
-                                        Source_Seq_No: dst_seq,
-                                        Dest_Seq_No:bytes.Source_Seq_No,
-                                        Rreq_Id : 0])                         // RREP will contain destination seq. no.
+                                        Dest_Seq_No: dst_seq])                         // RREP will contain destination seq. no.
 
              def prev = Check_Routing_Table(bytes.Source_Id)
              phy << new DatagramReq(to:prev, protocol:Protocol.DATA,data:rrep_pdu)
@@ -215,7 +253,10 @@ void processMessage(Message msg) {
                                               Dest_Id: bytes.Dest_Id,
                                               Source_Seq_No : bytes.Source_Seq_No,
                                               Dest_Seq_No : bytes.Dest_Seq_No,
-                                              Rreq_Id : bytes.Rreq_Id])
+                                              Rreq_Id : bytes.Rreq_Id,
+                                              G : bytes.G,
+                                              D : bytes.D,
+                                              U : bytes.U])
                 if(next)
                 {
                      // Route entry already exist,  forward Intermediate RREQ to Next hop address
@@ -242,11 +283,11 @@ void processMessage(Message msg) {
         }
     if(msg instanceof RxFrameNtf && msg.protocol == Protocol.DATA)  // If recieved message is a RREP with DATA protocol
     {
-        def r_bytes =  pdu.decode(msg.data)                //decode PDU here
+        def r_bytes =  rp_pdu.decode(msg.data)                //decode PDU here
                                                       //check if current node is the source node of rreq or not
           if(r_bytes.Dest_Id == myAddr)
           {
-            Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
+            Create_Forward_Route(r_bytes.Dest_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
             System.out.println("Route Found to Destination");
 
             System.out.println("-------Routing Table at Node" + myAddr+" ---------")
@@ -271,15 +312,13 @@ void processMessage(Message msg) {
           else                                                   //since rrep are unicast messages just update routing table, no need to update cache table as reforwarding of rreps won't be there
           {
                                                                   //Create forward route entry
-            Create_Forward_Route(r_bytes.Source_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
+            Create_Forward_Route(r_bytes.Dest_Seq_No, r_bytes.Source_Id, msg.from, r_bytes.Hop_Count, Update_Hop_Count(r_bytes.Hop_Count))
                                                                    // create a intermediate RREP with updated hop count  and sequence no
-            def I_rrep_pdu = pdu.encode([ Type:2,
+            def I_rrep_pdu = rp_pdu.encode([ Type:2,
                                           Hop_Count: Update_Hop_Count(r_bytes.Hop_Count),
                                           Source_Id : r_bytes.Source_Id,
                                           Dest_Id :r_bytes.Dest_Id,
-                                          Source_Seq_No : r_bytes.Source_Seq_No,
-                                          Dest_Seq_No : r_bytes.Dest_Seq_No,
-                                          Rreq_Id : 0])
+                                          Dest_Seq_No : r_bytes.Dest_Seq_No])
 
                                           if(myAddr ==2)
                                           {
