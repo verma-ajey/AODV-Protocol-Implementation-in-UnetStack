@@ -73,7 +73,7 @@ def pdu = PDU.withFormat{
     int8('D')
     int8('G')
     int8('U')
-  }
+}
 
   def rp_pdu = PDU.withFormat{
 
@@ -82,7 +82,7 @@ def pdu = PDU.withFormat{
       uint8('Source_Id')
       uint8('Dest_Id')
       uint16('Dest_Seq_No')
-    }
+}
 
 
 // def data_pdu = PDU.withFormat{
@@ -94,18 +94,18 @@ def pdu = PDU.withFormat{
 
 int Update_Source_Seq_No(){
      return(++Source_Seq_No);
-   }
+}
 
-int Update_Rreq_Id()
-{
+int Update_Rreq_Id(){
   return (++Rreq_Id)
 }
-int Get_Current_Time()
-{
+
+int Get_Current_Time(){
   def timeStart = new Date()
   int seconds = timeStart.getTime()
   return seconds;
 }
+
 int Update_Hop_Count(int T_Hop_Count)
 {
      return ++T_Hop_Count;
@@ -121,13 +121,13 @@ int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry fo
       return 0;
   }
 
-int Check_Cache_Table(int T_Seq_No, int T_Dest_Id, int T_Source_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
+int Check_Cache_Table(int T_Rreq_Id, int T_Source_Id , int T_Dest_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
   {
     for(int[] row : Cache)
     {
-      if(row[0] == T_Seq_No)
+      if(row[0] == T_Rreq_Id)
       {
-        if(row[1] == T_Dest_Id && row[2] == T_Source_Id)
+        if(row[1] == T_Source_Id && row[2] == T_Dest_Id)
           return 0;
       }
     }
@@ -174,7 +174,7 @@ void startup(){
                                  D : 1,
                                  U : 1])   //Dynamic Source and Destination to be added
       def temp = pdu.decode(rreq_pdu)
-      Cache.add([temp.Source_Seq_No,temp.Dest_Id,temp.Source_Id,temp.Hop_Count,temp.Dest_Seq_No, Get_Current_Time()] as int[])
+      Cache.add([temp.Rreq_Id,temp.Source_Id,temp.Dest_Id,temp.Source_Seq_No,Get_Current_Time()] as int[])
       phy << new DatagramReq(to: Address.BROADCAST, protocol: Protocol.USER, data:rreq_pdu)
     })
   }
@@ -196,23 +196,23 @@ void processMessage(Message msg) {
    //          //First update cache table and routing table with backward route, after that
 
                  Create_Backward_Route(bytes.Source_Seq_No, bytes.Source_Id, msg.from, bytes.Hop_Count, Update_Hop_Count(bytes.Hop_Count))
-                 Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count),bytes.Dest_Seq_No, Get_Current_Time()] as int[])
+                 Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as int[])
    //          // [Construct RREP PDU and Unicast it back to source using a different protocol to differentiate between RREQ and RREP]
-
+//--------------------------------------------------------------------------------------------------------------------------------------
                 System.out.println("-------Cache Table at Node"+myAddr + "---------")
                 for(int []chk: Cache)
                 {
 
-                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4]+" "+ chk[5])
+                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4])
                 }
                 System.out.println("-------Routing Table at Node" + myAddr+" ---------")
-                     for(int []chk: RoutingTable)
-                    {
+                for(int []chk: RoutingTable)
+                {
 
-                        System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
-                    }
+                    System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
+                }
+//--------------------------------------------------------------------------------------------------------------------------------------
                 def dst_seq = Math.max(bytes.Dest_Seq_No,Update_Source_Seq_No())
-
 
             def rrep_pdu = rp_pdu.encode([ Type:2,
                                         Hop_Count:0,
@@ -231,11 +231,12 @@ void processMessage(Message msg) {
    //                                                                             //else forward the packet
          else{
 
-              if(Check_Cache_Table(bytes.Source_Seq_No, bytes.Dest_Id,bytes.Source_Id))    //To avoid Re-Forwarding of same RREQ packet
+              if(Check_Cache_Table(bytes.Rreq_Id,bytes.Source_Id ,bytes.Dest_Id))    //To avoid Re-Forwarding of same RREQ packet
               {
    //              // Update cache table here for individual Nodes
 
-                Cache.add([bytes.Source_Seq_No, bytes.Dest_Id, bytes.Source_Id, Update_Hop_Count(bytes.Hop_Count),bytes.Dest_Seq_No, Get_Current_Time()] as int[])
+                Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as int[])
+//------------------------------------------------------------------------------------------------------------------------------------------------------
                 // if(myAddr ==3){
                 // System.out.println("-------Cache Table at Node"+myAddr + "---------")
                 // for(int []chk: Cache)
@@ -245,6 +246,7 @@ void processMessage(Message msg) {
                 // }
                 // }
                    // Check for routing table , if route to dest is available, send  datagram using phy agent otherwise broadcast again and update backward route
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------
                 def next = Check_Routing_Table(bytes.Dest_Id)
                 // Since RREQ must be forwarded, Construct a Intermediate RREQ with updated Seq no and Hop Count
                 def I_rreq_pdu = pdu.encode([ Type:1,
@@ -265,6 +267,7 @@ void processMessage(Message msg) {
                 else  // Create backward Route Entry and Broadcast the RREQ further with updated RREQ packet
                 {
                    Create_Backward_Route(bytes.Source_Seq_No, bytes.Source_Id, msg.from, bytes.Hop_Count, Update_Hop_Count(bytes.Hop_Count))
+//----------------------------------------------------------------------------------------------------------------------------------------
                      // if(myAddr ==3)
                      // {
                      //   System.out.println("-------Routing Table at Node" + myAddr+" ---------")
@@ -273,6 +276,7 @@ void processMessage(Message msg) {
                      //     System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
                      //   }
                      // }
+//------------------------------------------------------------------------------------------------------------------------------------------
                      phy << new DatagramReq(to:Address.BROADCAST, protocol : Protocol.USER, data:I_rreq_pdu)
                   }
                 }
@@ -319,7 +323,7 @@ void processMessage(Message msg) {
                                           Source_Id : r_bytes.Source_Id,
                                           Dest_Id :r_bytes.Dest_Id,
                                           Dest_Seq_No : r_bytes.Dest_Seq_No])
-
+//--------------------------------------------------------------------------------------------------------------------------
                                           if(myAddr ==2)
                                           {
                                             System.out.println("-------Routing Table at Node" + myAddr+" ---------")
@@ -328,6 +332,7 @@ void processMessage(Message msg) {
                                               System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3])
                                             }
                                           }
+//--------------------------------------------------------------------------------------------------------------------------
             def prev = Check_Routing_Table(r_bytes.Dest_Id)
             phy << new DatagramReq(to:prev, protocol:Protocol.DATA,data:I_rrep_pdu)
 
