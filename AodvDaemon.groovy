@@ -1,5 +1,6 @@
 import java.util.*
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import org.arl.fjage.*
 import org.arl.unet.*
 import org.arl.unet.phy.*
@@ -46,7 +47,7 @@ def Source_id
 def Source_Seq_No =0
 def Rreq_Id =0
 
-List<int[]> Cache = new ArrayList<int[]>();      // Holds source_seq_no,dst_id,src_id,Hop_Count,dest_seq_no to avoid forwarding loops
+List<long[]> Cache = new ArrayList<long[]>();      // Holds source_seq_no,dst_id,src_id,Hop_Count,dest_seq_no to avoid forwarding loops
                                                     // ---------------------------------------------------------------------------------
                                                     // |   source_Seq_No    dst_Id     src_id   Hop_Count     dst_seq_no      Timestamp |
                                                     // |                                                                                |
@@ -100,10 +101,23 @@ int Update_Rreq_Id(){
   return (++Rreq_Id)
 }
 
-int Get_Current_Time(){
+long Get_Current_Time(){
   def timeStart = new Date()
-  int seconds = timeStart.getTime()
-  return seconds;
+  long seconds = timeStart.getTime()
+
+  // Calendar c1 = Calendar.getInstance();
+  //
+  // c1.set(Calendar.MONTH, 01);
+  //
+  // c1.set(Calendar.DATE, 01);
+  //
+  // c1.set(Calendar.YEAR, 2015);
+  //
+  // Date dateOne = c1.getTime();
+  // long t = dateOne.getTime();
+  //
+  // return (seconds - t);
+  return seconds
 }
 
 int Update_Hop_Count(int T_Hop_Count)
@@ -121,9 +135,21 @@ int Check_Routing_Table(int T_Dest_Id)   // Returns node address if any entry fo
       return 0;
   }
 
-int Check_Cache_Table(int T_Rreq_Id, int T_Source_Id , int T_Dest_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
+int Check_Cache_Table(long T_Rreq_Id, long T_Source_Id , long T_Dest_Id)   // Returns 0 if any cache entry found, else 1, if no cache entry exist
   {
-    for(int[] row : Cache)
+    long temp_timestamp = Get_Current_Time()
+//    Iterator<long[]> ite = Cache.iterator();
+
+
+    for(long[] t_row : Cache)
+    {
+      if((temp_timestamp - t_row[4]) > PATH_DISCOVERY_TIME)
+      {
+        Cache.remove(t_row)
+      }
+    }
+
+    for(long[] row : Cache)
     {
       if(row[0] == T_Rreq_Id)
       {
@@ -174,8 +200,28 @@ void startup(){
                                  D : 1,
                                  U : 1])   //Dynamic Source and Destination to be added
       def temp = pdu.decode(rreq_pdu)
-      Cache.add([temp.Rreq_Id,temp.Source_Id,temp.Dest_Id,temp.Source_Seq_No,Get_Current_Time()] as int[])
+      Cache.add([temp.Rreq_Id,temp.Source_Id,temp.Dest_Id,temp.Source_Seq_No,Get_Current_Time()] as long[])
+      Cache.add([4,5,6,4,1] as long[])
+//---------------------------------------------------------------------------------------------------------------------------------------------
+      System.out.println("-------Cache Table at Node"+myAddr + "---------")
+      for(long []chk: Cache)
+      {
+
+          System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4])
+      }
+//---------------------------------------------------------------------------------------------------------------------------------------------
       phy << new DatagramReq(to: Address.BROADCAST, protocol: Protocol.USER, data:rreq_pdu)
+    })
+
+    add new WakerBehavior(10000, {
+      System.out.println(Get_Current_Time())
+      Check_Cache_Table(4,5,6)
+      System.out.println("-------Cache Table at Node"+myAddr + "---------")
+      for(long []chk: Cache)
+      {
+
+          System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4])
+      }
     })
   }
 }
@@ -196,11 +242,12 @@ void processMessage(Message msg) {
    //          //First update cache table and routing table with backward route, after that
 
                  Create_Backward_Route(bytes.Source_Seq_No, bytes.Source_Id, msg.from, bytes.Hop_Count, Update_Hop_Count(bytes.Hop_Count))
-                 Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as int[])
+                 Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as long[])
+
    //          // [Construct RREP PDU and Unicast it back to source using a different protocol to differentiate between RREQ and RREP]
 //--------------------------------------------------------------------------------------------------------------------------------------
                 System.out.println("-------Cache Table at Node"+myAddr + "---------")
-                for(int []chk: Cache)
+                for(long []chk: Cache)
                 {
 
                     System.out.println(chk[0]+" "+ chk[1] +" "+ chk[2] +" "+ chk[3]+" "+ chk[4])
@@ -235,7 +282,7 @@ void processMessage(Message msg) {
               {
    //              // Update cache table here for individual Nodes
 
-                Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as int[])
+                Cache.add([bytes.Rreq_Id, bytes.Source_Id, bytes.Dest_Id,bytes.Source_Seq_No, Get_Current_Time()] as long[])
 //------------------------------------------------------------------------------------------------------------------------------------------------------
                 // if(myAddr ==3){
                 // System.out.println("-------Cache Table at Node"+myAddr + "---------")
